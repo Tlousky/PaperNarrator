@@ -66,8 +66,6 @@ class WorkflowBuilder:
         output_format = getattr(self.config, 'OUTPUT_FORMAT', 'ep3').lower()
         return "ep3" if output_format == "ep3" else "audio"
     
-    # Node implementations (stubs for now, will be filled in Tasks 5-7)
-    
     async def extracting_text(self, state: PipelineState) -> PipelineState:
         """Task 5: Extract text from PDF (URL or file)."""
         state.status_message = "Extracting text from PDF..."
@@ -173,10 +171,113 @@ class WorkflowBuilder:
     async def chunking_text(self, state: PipelineState) -> PipelineState:
         """Task 7: Section-aware chunking for TTS (max 8500 words per chunk)."""
         state.status_message = "Chunking text for TTS..."
-        # TODO: Implement in Task 7
-        # - Greedy packing algorithm
-        # - Never split sections across chunks
-        # - Handle sections > 8500 words by splitting paragraphs
+        
+        try:
+            if not state.cleaned_sections:
+                state.status = PipelineStatus.FAILED
+                state.error = "No cleaned sections available."
+                return state
+            
+            MAX_WORDS = 8500  # ~60 min at 150 wpm
+            chunks = []
+            current_chunk_text = []
+            current_word_count = 0
+            current_sections = []
+            
+            def save_chunk():
+                """Helper to save current chunk and reset."""
+                nonlocal current_chunk_text, current_word_count, current_sections
+                if current_chunk_text:
+                    chunks.append(TextChunk(
+                        text="\n\n".join(current_chunk_text),
+                        word_count=current_word_count,
+                        section_names=current_sections.copy(),
+                        chunk_id=f"{current_sections[0]}_chunk_{len(chunks)+1}"
+                    ))
+                current_chunk_text = []
+                current_word_count = 0
+                current_sections = []
+            
+            for section in state.cleaned_sections:
+                section_word_count = section.word_count
+                section_text = section.content
+                
+                if section_word_count <= MAX_WORDS:
+                    # Section fits - try to add to current chunk
+                    if current_word_count + section_word_count <= MAX_WORDS:
+                        current_chunk_text.append(section_text)
+                        current_word_count += section_word_count
+                        if section.title not in current_sections:
+                            current_sections.append(section.title)
+                    else:
+                        # Save current, start new with this section
+                        save_chunk()
+                        current_chunk_text = [section_text]
+                        current_word_count = section_word_count
+                        current_sections = [section.title]
+                else:
+                    # Section too large - split by paragraphs
+                    paragraphs = [p.strip() for p in section_text.split('\n\n') if p.strip()]
+                    
+                    for para in paragraphs:
+                        para_words = len(para.split())
+                        
+                        if para_words <= MAX_WORDS:
+                            # Paragraph fits - try to add
+                            if current_word_count + para_words <= MAX_WORDS:
+                                current_chunk_text.append(para)
+                                current_word_count += para_words
+                            else:
+                                save_chunk()
+                                current_chunk_text = [para]
+                                current_word_count = para_words
+                            if section.title not in current_sections:
+                                current_sections.append(section.title)
+                        else:
+                            # Paragraph too large - split by sentences
+                            sentences = [s.strip() + "." for s in para.split('.') if s.strip()]
+                            
+                            for sent in sentences:
+                                sent_words = len(sent.split())
+                                
+                                if sent_words <= MAX_WORDS:
+                                    if current_word_count + sent_words <= MAX_WORDS:
+                                        current_chunk_text.append(sent)
+                                        current_word_count += sent_words
+                                    else:
+                                        save_chunk()
+                                        current_chunk_text = [sent]
+                                        current_word_count = sent_words
+                                    if section.title not in current_sections:
+                                        current_sections.append(section.title)
+                                else:
+                                    # Sentence too large - split by words
+                                    words = sent.split()
+                                    
+                                    for word in words:
+                                        if current_word_count + 1 <= MAX_WORDS:
+                                            if current_chunk_text:
+                                                current_chunk_text[-1] += " " + word
+                                            else:
+                                                current_chunk_text = [word]
+                                            current_word_count += 1
+                                        else:
+                                            save_chunk()
+                                            current_chunk_text = [word]
+                                            current_word_count = 1
+                                        if section.title not in current_sections:
+                                            current_sections.append(section.title)
+            
+            # Last chunk
+            save_chunk()
+            
+            state.chunks = chunks
+            state.status_message = f"Created {len(chunks)} chunks ({sum(c.word_count for c in chunks)} total words)"
+            
+        except Exception as e:
+            state.status = PipelineStatus.FAILED
+            state.error = f"Failed to chunk text: {str(e)}"
+        
         return state
     
     async def generating_audio(self, state: PipelineState) -> PipelineState:

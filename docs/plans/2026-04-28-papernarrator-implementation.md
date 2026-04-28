@@ -278,7 +278,7 @@ F:/code/PaperNarrator/
 
 ## Progress Status (as of 2026-04-28)
 
-**Completed Tasks:** 6/14 (43%)
+**Completed Tasks:** 7/14 (50%)
 
 | Task | Status | Notes |
 |------|--------|-------|
@@ -287,7 +287,7 @@ F:/code/PaperNarrator/
 | Task 3 | ✅ Complete | 4 providers (OpenAI/Gemini/Anthropic/Ollama) + factory |
 | Task 4 | ✅ Complete | State machine with 7 nodes, 7 tests passing |
 | Task 5 | ✅ Complete | PDF extraction with PyMuPDF, 11 tests |
-| Task 6 | ✅ Complete | Cleaning tools implemented (sections, citations, metadata, TTS smoothing) |
+| Task 6 | ✅ Complete | Cleaning workflow node (sections, citations, metadata, TTS smoothing) |
 | Task 7-14 | ❌ Pending | Chunking, TTS, EP3, UI, Docker, Testing |
 
 **Next Task:** Task 7 - Text Chunking (implement `chunking_text` node with 8500-word limit)
