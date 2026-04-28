@@ -4,7 +4,13 @@ from typing import TypedDict, Annotated, List, Optional
 from langchain_core.tools import tool
 
 from .state import PipelineState, PipelineStatus, PaperSection, TextChunk
-from .tools import _extract_pdf_text
+from .tools import (
+    _extract_pdf_text,
+    _extract_sections,
+    _remove_citations,
+    _remove_metadata,
+    _smooth_for_tts
+)
 import tempfile
 import os
 import requests
@@ -115,11 +121,53 @@ class WorkflowBuilder:
     async def cleaning_with_llm(self, state: PipelineState) -> PipelineState:
         """Task 6: LLM-based cleaning (extract sections, remove citations, smooth for TTS)."""
         state.status_message = "Cleaning text with LLM..."
-        # TODO: Implement in Task 6
-        # - Extract sections (Abstract, Introduction, etc.)
-        # - Remove citations [1], (Author, 2023)
-        # - Remove metadata (Keywords, References)
-        # - Smooth for TTS (expand "et al.", "Fig.")
+        
+        try:
+            if not state.raw_text:
+                state.status = PipelineStatus.FAILED
+                state.error = "No raw text available. Previous extraction step may have failed."
+                return state
+            
+            # Extract sections
+            state.status_message = "Extracting sections..."
+            sections_raw = await _extract_sections(state.raw_text)
+            
+            if not sections_raw:
+                state.status = PipelineStatus.FAILED
+                state.error = "No sections extracted from text."
+                return state
+            
+            # Clean each section
+            state.status_message = "Removing citations and metadata..."
+            cleaned_sections = []
+            total_words = 0
+            
+            for sec in sections_raw:
+                title = sec["title"]
+                content = sec["content"]
+                
+                # Apply cleaning pipeline
+                content = await _remove_citations(content)
+                content = await _remove_metadata(content)
+                content = await _smooth_for_tts(content)
+                
+                word_count = len(content.split())
+                total_words += word_count
+                
+                cleaned_sections.append(PaperSection(
+                    title=title,
+                    content=content,
+                    word_count=word_count
+                ))
+            
+            state.cleaned_sections = cleaned_sections
+            state.total_words = total_words
+            state.status_message = f"Cleaned {len(cleaned_sections)} sections ({total_words} words)"
+            
+        except Exception as e:
+            state.status = PipelineStatus.FAILED
+            state.error = f"Failed to clean text: {str(e)}"
+        
         return state
     
     async def chunking_text(self, state: PipelineState) -> PipelineState:

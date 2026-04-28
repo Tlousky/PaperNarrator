@@ -210,7 +210,7 @@ async def _smooth_for_tts(text: str) -> str:
         (r"\bTable\s*(\d+)", r"Table \1"),
         (r"\btable\s*(\d+)", r"Table \1"),
         (r"\betc\.\b", "and so on"),
-        (r"et\.\s+al\.(?=\s|$)", "and colleagues"),
+        (r"et\s+al\.(?=\s|$)", "and colleagues"),
         (r"\bi\.e\.\b", "that is"),
         (r"\be\.g\.\b", "for example"),
         (r"\bvs\.\b", "versus"),

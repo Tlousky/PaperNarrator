@@ -97,6 +97,12 @@ class TestSmoothForTTS:
     """Test TTS smoothing."""
     
     @pytest.mark.asyncio
+    async def test_expand_et_al(self):
+        text = "Smith et al. showed that..."
+        result = await _smooth_for_tts(text)
+        assert "and colleagues" in result
+    
+    @pytest.mark.asyncio
     async def test_expand_fig(self):
         text = "See Fig. 1 for details."
         result = await _smooth_for_tts(text)
