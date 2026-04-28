@@ -28,8 +28,32 @@ class Config:
     VIBEVOICE_DEVICE: str = os.getenv("VIBEVOICE_DEVICE", "cuda:0")
     
     # Output Configuration
-    OUTPUT_FORMAT: str = os.getenv("OUTPUT_FORMAT", "ep3")
-    MP3_BITRATE: int = int(os.getenv("MP3_BITRATE", "128"))
+    _output_format_raw: str = os.getenv("OUTPUT_FORMAT", "ep3")
+    _mp3_bitrate_raw: str = os.getenv("MP3_BITRATE", "128")
+    
+    # Validate OUTPUT_FORMAT
+    if _output_format_raw not in ("ep3", "mp3", "wav"):
+        raise ValueError(
+            f"Invalid OUTPUT_FORMAT: '{_output_format_raw}'. "
+            "Supported formats: 'ep3', 'mp3', 'wav'"
+        )
+    OUTPUT_FORMAT: str = _output_format_raw
+    
+    # Validate MP3_BITRATE
+    try:
+        _mp3_bitrate_val: int = int(_mp3_bitrate_raw)
+    except ValueError:
+        raise ValueError(
+            f"Invalid MP3_BITRATE: '{_mp3_bitrate_raw}'. "
+            "Must be a valid integer."
+        )
+    
+    if not (32 <= _mp3_bitrate_val <= 320):
+        raise ValueError(
+            f"Invalid MP3_BITRATE: '{_mp3_bitrate_val}'. "
+            "Must be between 32 and 320."
+        )
+    MP3_BITRATE: int = _mp3_bitrate_val
     
     # VLM Configuration
     VLM_ENABLED: bool = os.getenv("VLM_ENABLED", "False").lower() in ("true", "1", "yes")
