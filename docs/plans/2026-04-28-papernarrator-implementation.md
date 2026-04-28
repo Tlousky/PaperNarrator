@@ -276,6 +276,22 @@ F:/code/PaperNarrator/
 
 ---
 
+## Progress Status (as of 2026-04-28)
+
+**Completed Tasks:** 3/14 (21%)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Task 1 | ✅ Complete | `pyproject.toml`, `.env.example`, `README.md` created |
+| Task 2 | ✅ Complete | `config.py` with validation, 11 tests passing |
+| Task 3 | ✅ Complete | 4 providers (OpenAI/Gemini/Anthropic/Ollama) + factory |
+| Task 4 | ❌ Pending | LangGraph state machine not created |
+| Task 5-14 | ❌ Pending | Core pipeline, TTS, EP3, UI, Docker, Testing |
+
+**Next Task:** Task 4 - LangGraph State Machine (`langgraph_pipeline/state.py`, `workflow.py`)
+
+---
+
 ## Execution
 
 **Plan complete.** Two execution options:
