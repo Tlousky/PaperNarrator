@@ -216,3 +216,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# PaperNarrator specific
+*.epub
+*.mp3
+*.wav
+*.m4b
+.huggingface/
