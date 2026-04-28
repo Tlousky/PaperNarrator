@@ -4,6 +4,7 @@ from typing import TypedDict, Annotated, List, Optional
 from langchain_core.tools import tool
 
 from .state import PipelineState, PipelineStatus, PaperSection, TextChunk
+from .tools import _extract_pdf_text
 import tempfile
 import os
 import requests
@@ -64,11 +65,45 @@ class WorkflowBuilder:
     async def extracting_text(self, state: PipelineState) -> PipelineState:
         """Task 5: Extract text from PDF (URL or file)."""
         state.status_message = "Extracting text from PDF..."
-        # TODO: Implement in Task 5
-        # - Handle URL download with requests
-        # - Handle file upload via temp_path
-        # - Use PyMuPDF (fitz) to extract text
-        # - Check for empty text (scanned PDF)
+        
+        pdf_path = None
+        
+        try:
+            # Handle URL input
+            if state.source_type == "url":
+                state.status_message = "Downloading PDF..."
+                response = requests.get(state.content, timeout=30)
+                response.raise_for_status()
+                
+                # Save to temp file
+                with tempfile.NamedTemporaryFile(mode="wb", suffix=".pdf", delete=False) as f:
+                    f.write(response.content)
+                    pdf_path = f.name
+                state.temp_path = pdf_path
+            elif state.source_type == "file":
+                pdf_path = state.temp_path
+            else:
+                state.status = PipelineStatus.FAILED
+                state.error = "Invalid source_type. Must be 'url' or 'file'."
+                return state
+            
+            # Extract text
+            state.status_message = "Extracting text..."
+            raw_text = await _extract_pdf_text(pdf_path)
+            
+            # Check for scanned PDF (empty or very short text)
+            if not raw_text or len(raw_text.strip()) < 50:
+                state.status = PipelineStatus.FAILED
+                state.error = "No text extracted. PDF may be image-only (scanned). Please use OCR or provide text PDF."
+                return state
+            
+            state.raw_text = raw_text
+            state.status_message = f"Extracted {len(raw_text)} characters"
+            
+        except Exception as e:
+            state.status = PipelineStatus.FAILED
+            state.error = f"Failed to process PDF: {str(e)}"
+        
         return state
     
     async def describing_figures(self, state: PipelineState) -> PipelineState:
