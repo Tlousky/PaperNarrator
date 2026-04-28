@@ -80,6 +80,39 @@ class TestRemoveCitations:
         result = await _remove_citations(text)
         assert "(Smith, 2023)" not in result
         assert "(Johnson et al., 2024)" not in result
+    
+    @pytest.mark.asyncio
+    async def test_remove_european_names_citations(self):
+        """Test citation removal with multi-word surnames like van der Waals."""
+        text = "As shown by (van der Waals, 2023) and (de la Cruz et al., 2024)"
+        result = await _remove_citations(text)
+        assert "(van der Waals, 2023)" not in result
+        assert "(de la Cruz et al., 2024)" not in result
+
+
+class TestSectionOrdering:
+    """Test that sections are returned in document order."""
+    
+    @pytest.mark.asyncio
+    async def test_sections_returned_in_order(self):
+        """Test that section extraction preserves document order."""
+        text = """Discussion
+        Some discussion text here.
+        
+        Results
+        Some results here.
+        
+        Abstract
+        Some abstract here.
+        
+        Introduction
+        Some introduction here.
+        """
+        sections = await _extract_sections(text)
+        
+        # Should be ordered as they appear in document: Discussion, Results, Abstract, Introduction
+        titles = [s["title"] for s in sections]
+        assert titles == ["Discussion", "Results", "Abstract", "Introduction"]
 
 
 class TestRemoveMetadata:

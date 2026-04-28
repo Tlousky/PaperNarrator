@@ -3,8 +3,6 @@
 import re
 from typing import List, Dict
 from langchain_core.tools import tool
-import tempfile
-import os
 
 
 async def _extract_pdf_text(path: str) -> str:
@@ -121,6 +119,9 @@ async def _extract_sections(text: str) -> List[Dict]:
                 "end_pos": match.end()
             })
     
+    # Sort by position in text to preserve document order
+    sections.sort(key=lambda x: x["start_pos"])
+    
     return sections
 
 
@@ -144,8 +145,8 @@ async def _remove_citations(text: str) -> str:
     """
     # Remove [1], [2-5], [10-15]
     text = re.sub(r"\[\d+(?:-\d+)?\]", "", text)
-    # Remove (Smith, 2023) or (Smith et al., 2023)
-    text = re.sub(r"\([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*(?:\s+et\.?\s+al\.?)?\,?\s*\d{4}\)", "", text)
+    # Remove (Smith, 2023), (Smith et al., 2023), (van der Waals, 2023)
+    text = re.sub(r"\([A-Za-z]+(?:\s+[A-Za-z]+)*(?:\s+et\.?\s+al\.?)?\,?\s*\d{4}\)", "", text)
     # Remove superscript numbers
     text = re.sub(r"\^[0-9]+", "", text)
     return text

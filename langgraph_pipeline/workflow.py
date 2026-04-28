@@ -1,5 +1,4 @@
 from langgraph.graph import StateGraph, END
-from langgraph.graph.message import BaseMessage
 from typing import TypedDict, Annotated, List, Optional
 from langchain_core.tools import tool
 
@@ -234,8 +233,10 @@ class WorkflowBuilder:
                             if section.title not in current_sections:
                                 current_sections.append(section.title)
                         else:
-                            # Paragraph too large - split by sentences
-                            sentences = [s.strip() + "." for s in para.split('.') if s.strip()]
+                            # Paragraph too large - split by sentences (preserving punctuation)
+                            import re
+                            sentences = re.split(r'(?<=[.!?])\s+', para)
+                            sentences = [s.strip() for s in sentences if s.strip()]
                             
                             for sent in sentences:
                                 sent_words = len(sent.split())

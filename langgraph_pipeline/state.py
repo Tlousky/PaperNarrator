@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
 from enum import Enum
 
@@ -24,6 +24,13 @@ class TextChunk(BaseModel):
     word_count: int = Field(..., description="Word count (must be < 10000)")
     section_names: List[str] = Field(default_factory=list, description="List of section titles included in this chunk")
     chunk_id: Optional[str] = Field(None, description="Unique identifier for this chunk")
+    
+    @field_validator("word_count")
+    @classmethod
+    def validate_word_count(cls, v):
+        if v > 10000:
+            raise ValueError(f"Word count {v} exceeds maximum allowed 10000 words")
+        return v
 
 
 class PipelineState(BaseModel):
