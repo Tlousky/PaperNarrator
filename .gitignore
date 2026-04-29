@@ -223,3 +223,6 @@ __marimo__/
 *.wav
 *.m4b
 .huggingface/
+
+# Git worktrees
+.worktrees/
