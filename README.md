@@ -69,6 +69,58 @@ cp .env.example .env
 | `MP3_BITRATE` | Audio bitrate in kbps | `128` |
 | `VLM_ENABLED` | Enable figure descriptions | `false` |
 
+## Setup VibeVoice Models
+
+Before running, download the VibeVoice-1.5B model and voice samples:
+
+### Linux/Mac
+
+```bash
+./setup_vibevoice.sh
+```
+
+### Windows
+
+```bash
+setup_vibevoice.bat
+```
+
+This downloads:
+- **Model**: `microsoft/VibeVoice-1.5B` (~2GB) to `./models/microsoft/VibeVoice-1.5B/`
+- **Voice samples**: Carter, Wayne, Avery Carter (~10MB each)
+- **Test data**: Sample text file
+
+### Manual Download
+
+```bash
+pip install huggingface_hub
+
+python -c "
+from huggingface_hub import snapshot_download
+snapshot_download('microsoft/VibeVoice-1.5B', local_dir='./models/microsoft/VibeVoice-1.5B', resume_download=True)
+"
+```
+
+## Quick Test
+
+```bash
+python -c "
+from tts.vibevoice import VibeVoiceTTS
+
+tts = VibeVoiceTTS(
+    model_name='./models/microsoft/VibeVoice-1.5B',
+    speaker_name='Carter'
+)
+
+tts.generate_audio(
+    text='Hello world. This is a test.',
+    output_path='output.wav',
+    word_count=8
+)
+print('Saved to output.wav')
+"
+```
+
 ## Usage
 
 1. Launch the Gradio interface
