@@ -10,7 +10,7 @@ import pytest
 from pathlib import Path
 
 # Skip if models not available
-MODELS_DIR = Path("./models/microsoft/VibeVoice-1.5B")
+MODELS_DIR = Path("./models/microsoft/VibeVoice-Realtime-0.5B")
 pytestmark = pytest.mark.skipif(
     not MODELS_DIR.exists(),
     reason=f"VibeVoice models not found. Run setup_vibevoice.sh/bat first. Expected at: {MODELS_DIR}"
