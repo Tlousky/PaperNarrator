@@ -26,6 +26,7 @@ dependencies = [
     "pillow>=10.4.0",
     "numpy>=1.26.0",
     "scipy>=1.13.0",
+    "vibevoice @ git+https://github.com/microsoft/VibeVoice.git#subdirectory=vibevoice",
 ]
 
 [project.optional-dependencies]
@@ -41,4 +42,4 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["langgraph_pipeline", "llm", "tts", "tests*"]
+include = ["langgraph_pipeline", "llm", "tts", "config", "tests*"]
