@@ -286,11 +286,14 @@ F:/code/PaperNarrator/
 | Task 2 | ✅ Complete | `config.py` with validation, 11 tests passing |
 | Task 3 | ✅ Complete | 4 providers (OpenAI/Gemini/Anthropic/Ollama) + factory |
 | Task 4 | ✅ Complete | State machine with 7 nodes, 7 tests passing |
-| Task 5 | ✅ Complete | PDF extraction with PyMuPDF, 11 tests |
+| Task 5 | ✅ Complete | PDF extraction with PyMuPDF, 12 tests |
 | Task 6 | ✅ Complete | Cleaning workflow node (sections, citations, metadata, TTS smoothing) |
-| Task 7-14 | ❌ Pending | Chunking, TTS, EP3, UI, Docker, Testing |
+| Task 7 | ✅ Complete | Section-aware chunking (8500-word limit, greedy packing) |
+| Task 8-14 | ❌ Pending | TTS, EP3, UI, Docker, Testing |
 
-**Next Task:** Task 7 - Text Chunking (implement `chunking_text` node with 8500-word limit)
+**Code Review:** Passed with fixes (sentence splitting, citation regex, section ordering, Pydantic validators)
+
+**Next Task:** Task 8 - VibeVoice TTS Integration (implement `generating_audio` node)
 
 ---
 

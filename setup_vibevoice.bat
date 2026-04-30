@@ -1,11 +1,11 @@
 @echo off
 setlocal enabledelayedexpansion
 
-echo === VibeVoice-1.5B Setup Script (Windows) ===
+echo === VibeVoice-Realtime-0.5B Setup Script (Windows) ===
 echo.
 
-set "MODEL_NAME=microsoft/VibeVoice-1.5B"
-set "VOICE_NAMES=Carter Wayne Avery Carter"
+set "MODEL_NAME=microsoft/VibeVoice-Realtime-0.5B"
+set "VOICE_NAMES=Carter Davis Emma"
 set "PYTHON_VENV=.venv"
 
 echo Checking Python environment...
@@ -22,7 +22,7 @@ python --version
 echo.
 echo Installing dependencies...
 pip install --upgrade pip
-pip install huggingface_hub soundfile pydub transformers torch
+pip install huggingface_hub soundfile pydub transformers torch requests
 
 echo.
 echo Checking for ffmpeg...
@@ -36,21 +36,20 @@ if %ERRORLEVEL% neq 0 (
 )
 
 echo.
-echo Downloading VibeVoice-1.5B model (%MODEL_NAME%)...
-echo This may take 5-10 minutes depending on your connection.
+echo Downloading VibeVoice-Realtime-0.5B model (%MODEL_NAME%)...
+echo This may take 2-5 minutes (~2GB).
 
 python - << 'PYTHON_SCRIPT'
 import os
 from huggingface_hub import snapshot_download
 
-model_name = "microsoft/VibeVoice-1.5B"
+model_name = "microsoft/VibeVoice-Realtime-0.5B"
 local_dir = f"./models/{model_name}"
 
 print(f"Downloading {model_name}...")
 snapshot_download(
     repo_id=model_name,
     local_dir=local_dir,
-    resume_download=True,
     local_dir_use_symlinks=False
 )
 print(f"Model downloaded to {local_dir}")
@@ -62,26 +61,31 @@ if %ERRORLEVEL% neq 0 (
 )
 
 echo.
-echo Downloading voice samples...
+echo Downloading voice samples from GitHub...
 
 python - << 'PYTHON_SCRIPT'
 import os
-from huggingface_hub import hf_hub_download
+import requests
 
-model_name = "microsoft/VibeVoice-1.5B"
-voices = ["Carter", "Wayne", "Avery", "Carter"]
+model_name = "microsoft/VibeVoice-Realtime-0.5B"
 voices_dir = f"./models/{model_name}/voices"
-
 os.makedirs(voices_dir, exist_ok=True)
 
-for voice in voices:
-    print(f"Downloading {voice}...")
-    hf_hub_download(
-        repo_id=model_name,
-        filename=f"voices/{voice}.pt",
-        local_dir=f"./models/{model_name}",
-        local_dir_use_symlinks=False
-    )
+voices = [
+    ("Carter", "en-Carter_man.pt"),
+    ("Davis", "en-Davis_man.pt"),
+    ("Emma", "en-Emma_woman.pt"),
+]
+
+for name, filename in voices:
+    url = f"https://raw.githubusercontent.com/microsoft/VibeVoice/main/demo/voices/streaming_model/{filename}"
+    dest_path = f"{voices_dir}/{name}.pt"
+    print(f"  Downloading {name}...")
+    response = requests.get(url, stream=True)
+    response.raise_for_status()
+    with open(dest_path, 'wb') as f:
+        for chunk in response.iter_content(chunk_size=8192):
+            f.write(chunk)
 
 print(f"Voice samples downloaded to {voices_dir}")
 PYTHON_SCRIPT
@@ -112,7 +116,7 @@ echo.
 echo Available voices: %VOICE_NAMES%
 echo.
 echo To test:
-echo   python -c "from tts.vibevoice import VibeVoiceTTS; tts = VibeVoiceTTS(model_name='./models/microsoft/VibeVoice-1.5B', speaker_name='Carter'); tts.generate_audio('Hello world', 'test.wav')"
+echo   python -c "from tts.vibevoice import VibeVoiceTTS; tts = VibeVoiceTTS(model_name='./models/microsoft/VibeVoice-Realtime-0.5B', speaker_name='Carter'); tts.generate_audio('Hello world', 'test.wav')"
 
 echo.
 echo Setup successful!

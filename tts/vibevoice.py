@@ -15,6 +15,19 @@ class VibeVoiceTTS:
     
     Generates long-form speech from text using streaming inference.
     """
+
+import os
+import copy
+from typing import Optional
+import torch
+
+
+class VibeVoiceTTS:
+    """
+    Wrapper for Microsoft VibeVoice-Realtime-0.5B TTS model.
+    
+    Generates long-form speech from text using streaming inference.
+    """
     
     def __init__(
         self,
@@ -23,6 +36,14 @@ class VibeVoiceTTS:
         speaker_name: str = "Carter",
         cfg_scale: float = 1.5
     ):
+        """
+        Initialize VibeVoice TTS.
+        
+        Args:
+            model_name: HuggingFace model ID (default: microsoft/VibeVoice-Realtime-0.5B)
+            device: 'cuda', 'mps', or 'cpu' (None for auto-detection)
+            speaker_name: Voice preset name (default: Carter)
+            cfg_scale: Classifier-Free Guidance scale (default: 1.5)
         """
         Initialize VibeVoice TTS.
         
@@ -138,11 +159,21 @@ class VibeVoiceTTS:
                 raise FileNotFoundError(f"Voice sample not found for {self.speaker_name}. Looked in {voice_path}")
             
             # Load voice preset
+            # Note: weights_only=False is required because voice files contain BaseModelOutputWithPast objects
+            # which are not basic tensors. Voice files are official Microsoft files from GitHub.
             self._voice_sample = torch.load(
                 voice_path,
                 map_location=self.device,
                 weights_only=False
             )
+            
+            # Validate voice file structure (security check)
+            if not isinstance(self._voice_sample, dict):
+                raise ValueError(f"Invalid voice file format for {self.speaker_name}: expected dict, got {type(self._voice_sample)}")
+            
+            expected_keys = {'lm', 'tts_lm', 'neg_lm', 'neg_tts_lm'}
+            if not expected_keys.issubset(set(self._voice_sample.keys())):
+                raise ValueError(f"Invalid voice file for {self.speaker_name}: missing keys {expected_keys - set(self._voice_sample.keys())}")
             
             self._loaded = True
             print(f"Model loaded successfully on {self.device}")

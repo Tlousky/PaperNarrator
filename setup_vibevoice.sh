@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "=== VibeVoice-1.5B Setup Script ==="
+echo "=== VibeVoice-Realtime-0.5B Setup Script ==="
 echo ""
 
 # Colors for output
@@ -11,8 +11,8 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Configuration
-MODEL_NAME="microsoft/VibeVoice-1.5B"
-VOICE_NAMES="Carter Wayne Avery Carter"
+MODEL_NAME="microsoft/VibeVoice-Realtime-0.5B"
+VOICE_NAMES="Carter Davis Emma"
 PYTHON_VENV="${PYTHON_VENV:-.venv}"
 
 echo "${YELLOW}Checking Python environment...${NC}"
@@ -37,7 +37,7 @@ echo "${GREEN}Python version: $(python --version)${NC}"
 echo ""
 echo "${YELLOW}Installing dependencies...${NC}"
 pip install --upgrade pip
-pip install huggingface_hub soundfile pydub transformers torch
+pip install huggingface_hub soundfile pydub transformers torch requests
 
 # Check for ffmpeg (required by pydub/soundfile)
 if ! command -v ffmpeg &> /dev/null; then
@@ -58,15 +58,14 @@ fi
 
 # Download model
 echo ""
-echo "${YELLOW}Downloading VibeVoice-1.5B model (${MODEL_NAME})...${NC}"
-echo "${YELLOW}This may take 5-10 minutes depending on your connection.${NC}"
+echo "${YELLOW}Downloading VibeVoice-Realtime-0.5B model (${MODEL_NAME})...${NC}"
+echo "${YELLOW}This may take 2-5 minutes (~2GB).${NC}"
 
 # Download using huggingface-cli
 huggingface-cli download \
     "$MODEL_NAME" \
     --local-dir "./models/$MODEL_NAME" \
-    --local-dir-use-symlinks false \
-    --resume-download
+    --local-dir-use-symlinks false
 
 if [ -d "./models/$MODEL_NAME" ]; then
     echo "${GREEN}Model downloaded successfully to ./models/$MODEL_NAME${NC}"
@@ -75,20 +74,37 @@ else
     exit 1
 fi
 
-# Download voice samples
+# Download voice samples from GitHub (not available on HuggingFace)
 echo ""
-echo "${YELLOW}Downloading voice samples...${NC}"
-for VOICE in $VOICE_NAMES; do
-    echo "Downloading $VOICE..."
-    huggingface-cli download \
-        "$MODEL_NAME" \
-        "voices/$VOICE.pt" \
-        --local-dir "./models/$MODEL_NAME/voices" \
-        --local-dir-use-symlinks false \
-        --resume-download
-done
+echo "${YELLOW}Downloading voice samples from GitHub...${NC}"
+python3 << 'PYTHON_SCRIPT'
+import os
+import requests
 
-echo "${GREEN}Voice samples downloaded to ./models/$MODEL_NAME/voices${NC}"
+model_name = "microsoft/VibeVoice-Realtime-0.5B"
+voices_dir = f"./models/{model_name}/voices"
+os.makedirs(voices_dir, exist_ok=True)
+
+voices = [
+    ("Carter", "en-Carter_man.pt"),
+    ("Davis", "en-Davis_man.pt"),
+    ("Emma", "en-Emma_woman.pt"),
+]
+
+for name, filename in voices:
+    url = f"https://raw.githubusercontent.com/microsoft/VibeVoice/main/demo/voices/streaming_model/{filename}"
+    dest_path = f"{voices_dir}/{name}.pt"
+    print(f"  Downloading {name}...")
+    response = requests.get(url, stream=True)
+    response.raise_for_status()
+    with open(dest_path, 'wb') as f:
+        for chunk in response.iter_content(chunk_size=8192):
+            f.write(chunk)
+
+print(f"Voice samples downloaded to {voices_dir}")
+PYTHON_SCRIPT
+
+echo "${GREEN}Voice samples downloaded${NC}"
 
 # Create test text file
 echo ""
@@ -112,6 +128,6 @@ echo ""
 echo "Available voices: $VOICE_NAMES"
 echo ""
 echo "To test:"
-echo "  python -c 'from tts.vibevoice import VibeVoiceTTS; tts = VibeVoiceTTS(model_name=\"./models/microsoft/VibeVoice-1.5B\", speaker_name=\"Carter\"); tts.generate_audio(\"Hello world\", \"test.wav\")'"
+echo "  python -c 'from tts.vibevoice import VibeVoiceTTS; tts = VibeVoiceTTS(model_name=\"./models/microsoft/VibeVoice-Realtime-0.5B\", speaker_name=\"Carter\"); tts.generate_audio(\"Hello world\", \"test.wav\")'"
 
 echo "${GREEN}Setup successful!${NC}"
