@@ -14,6 +14,13 @@ import tempfile
 import os
 import requests
 
+# Import tracer for observability
+try:
+    from observability.tracer import get_tracer
+    LANGFUSE_AVAILABLE = True
+except ImportError:
+    LANGFUSE_AVAILABLE = False
+
 
 class WorkflowBuilder:
     """Builder for the PaperNarrator LangGraph workflow."""
@@ -58,6 +65,15 @@ class WorkflowBuilder:
         workflow.add_edge("packaging_ep3", END)
         
         self.graph = workflow.compile()
+        
+        # Add LangFuse tracing if available
+        if LANGFUSE_AVAILABLE:
+            try:
+                tracer = get_tracer()
+                self.graph = tracer.trace_graph(self.graph, "paper-narrator-pipeline")
+            except Exception as e:
+                print(f"[WorkflowBuilder] Failed to initialize tracing: {e}")
+        
         return self.graph
     
     def should_package_as_ep3(self, state: PipelineState) -> str:
