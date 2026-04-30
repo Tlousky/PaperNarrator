@@ -11,7 +11,7 @@
 - **TTS:** Microsoft VibeVoice-1.5B (60-min limit per chunk)
 - **Output:** EP3 (EPUB 3 with Media Overlays) with chapter navigation
 
-**Tech Stack:** Python 3.11+, Gradio 4.x, LangGraph, HuggingFace Transformers, OpenAI/Anthropic/Gemini SDKs, ebooklib, PyMuPDF, UV, Docker
+**Tech Stack:** Python 3.11+, Gradio 4.x, LangGraph, HuggingFace Transformers, OpenAI/Anthropic/Gemini SDKs, ebooklib, PyMuPDF, UV, Docker, LangFuse
 
 ---
 
@@ -21,6 +21,8 @@
 F:/code/PaperNarrator/
 ├── app.py                      # Gradio frontend
 ├── config.py                   # Configuration
+├── langfuse/                   # Observability
+│   └── tracer.py              # LangFuse + markdown trace writer
 ├── langgraph_pipeline/         # State machine
 │   ├── state.py               # Pydantic states
 │   ├── tools.py               # LLM tools
@@ -34,8 +36,9 @@ F:/code/PaperNarrator/
 │   ├── anthropic_provider.py
 │   └── ollama_provider.py
 ├── tests/
-├── scripts/                    # Install scripts
-├── docker/                     # Dockerfile
+├── traces/                    # Markdown trace files (timestamped)
+├── scripts/                   # Install scripts
+├── docker/                    # Dockerfile
 ├── pyproject.toml
 └── README.md
 ```
@@ -230,7 +233,24 @@ F:/code/PaperNarrator/
 
 ---
 
-### Task 12: Installation Scripts
+### Task 12: LangFuse Observability
+**Files:** Create `langfuse/tracer.py`, update `pyproject.toml`, update `.env.example`
+
+**Steps:**
+1. Add `langfuse` to `pyproject.toml` dependencies
+2. Add `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST` to `.env.example`
+3. Implement `langfuse/tracer.py` with:
+   - `LangfuseTracer` class that wraps LangGraph graph with LangFuse tracing
+   - Custom trace writer that saves markdown traces to `./traces/{timestamp}_{run_id}.md`
+   - Trace format: LLM calls, tool invocations, node execution times, costs
+4. Update `langgraph_pipeline/workflow.py` to inject tracer into graph config
+5. Add fallback: if LANGFUSE keys not set, only write local markdown traces
+
+**Commit:** `feat: LangFuse observability with markdown trace export`
+
+---
+
+### Task 13: Installation Scripts
 **Files:** Create `scripts/install.bat`, `scripts/install.sh`, `scripts/download_models.py`
 
 **Steps:**
@@ -245,7 +265,7 @@ F:/code/PaperNarrator/
 
 ---
 
-## Phase 5: Deployment (Tasks 13-14)
+## Phase 5: Deployment & Testing (Tasks 14-15)
 
 ### Task 13: Docker Support
 **Files:** Create `docker/Dockerfile`, `docker/docker-compose.yml`
@@ -289,7 +309,7 @@ F:/code/PaperNarrator/
 | Task 5 | ✅ Complete | PDF extraction with PyMuPDF, 12 tests |
 | Task 6 | ✅ Complete | Cleaning workflow node (sections, citations, metadata, TTS smoothing) |
 | Task 7 | ✅ Complete | Section-aware chunking (8500-word limit, greedy packing) |
-| Task 8-14 | ❌ Pending | TTS, EP3, UI, Docker, Testing |
+| Task 8-15 | ❌ Pending | TTS, LangFuse, EP3, UI, Docker, Testing |
 
 **Code Review:** Passed with fixes (sentence splitting, citation regex, section ordering, Pydantic validators)
 
