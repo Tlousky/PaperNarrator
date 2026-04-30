@@ -224,5 +224,10 @@ __marimo__/
 *.m4b
 .huggingface/
 
+# FFmpeg downloads
+ffmpeg-master-latest-*.zip
+ffmpeg-master-latest-*.tar.xz
+.ffmpeg/
+
 # Git worktrees
 .worktrees/
