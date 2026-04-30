@@ -284,7 +284,58 @@ class WorkflowBuilder:
     async def generating_audio(self, state: PipelineState) -> PipelineState:
         """Task 8: VibeVoice TTS generation for each chunk."""
         state.status_message = "Generating audio with VibeVoice..."
-        # TODO: Implement in Task 8
+        
+        try:
+            if not state.chunks:
+                state.status = PipelineStatus.FAILED
+                state.error = "No chunks available for TTS."
+                return state
+            
+            from tts.vibevoice import VibeVoiceTTS
+            import tempfile
+            import os
+            
+            # Initialize TTS (lazy loads model)
+            tts = VibeVoiceTTS(
+                model_name=os.getenv("VIBEVOICE_MODEL_PATH", "./models/microsoft/VibeVoice-Realtime-0.5B"),
+                device=os.getenv("VIBEVOICE_DEVICE", "cuda"),
+                speaker_name=os.getenv("VIBEVOICE_SPEAKER", "Carter"),
+                cfg_scale=float(os.getenv("VIBEVOICE_CFG_SCALE", 1.5))
+            )
+            
+            audio_files = []
+            temp_dir = tempfile.mkdtemp(prefix="papernarrator_tts_")
+            
+            for i, chunk in enumerate(state.chunks):
+                chunk_num = i + 1
+                total_chunks = len(state.chunks)
+                
+                state.status_message = f"Generating audio {chunk_num}/{total_chunks} ({chunk.word_count} words)..."
+                
+                # Generate audio for this chunk
+                output_path = os.path.join(temp_dir, f"chunk_{chunk_num:03d}.wav")
+                
+                result_path = tts.generate_audio(
+                    text=chunk.text,
+                    output_path=output_path,
+                    word_count=chunk.word_count
+                )
+                
+                if os.path.exists(result_path):
+                    audio_files.append(result_path)
+                else:
+                    state.status = PipelineStatus.FAILED
+                    state.error = f"TTS failed for chunk {chunk_num}: {chunk.chunk_id}"
+                    return state
+            
+            state.audio_files = audio_files
+            state.temp_path = temp_dir  # Store temp dir for cleanup later
+            state.status_message = f"Generated {len(audio_files)} audio files"
+            
+        except Exception as e:
+            state.status = PipelineStatus.FAILED
+            state.error = f"TTS generation failed: {str(e)}"
+        
         return state
     
     async def concatenating_audio(self, state: PipelineState) -> PipelineState:
