@@ -172,7 +172,7 @@ class TestConcatenatingAudio:
         """Test MP3 export when OUTPUT_FORMAT=mp3."""
         config = MagicMock()
         config.OUTPUT_FORMAT = "mp3"
-        config.MP3_BITRATE = "128kbps"
+        config.MP3_BITRATE = "128k"  # Correct format for pydub (not '128kbps')
         
         workflow_builder = WorkflowBuilder(config=config)
         
@@ -203,11 +203,7 @@ class TestConcatenatingAudio:
         try:
             result = await workflow_builder.concatenating_audio(state)
             
-            # Check if ffmpeg is available for MP3 encoding
-            if "ffmpeg" in str(result.error).lower() or "encoder" in str(result.error).lower():
-                pytest.skip("ffmpeg not available for MP3 encoding")
-            
-            assert result.status == PipelineStatus.COMPLETED
+            assert result.status == PipelineStatus.COMPLETED, f"Failed: {result.error}"
             assert result.final_output.endswith('.mp3')
         except ImportError:
             pytest.skip("pydub not installed")

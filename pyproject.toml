@@ -29,6 +29,7 @@ dependencies = [
     "vibevoice @ git+https://github.com/microsoft/VibeVoice.git",
     "av>=12.0.0",
     "librosa>=0.10.0",
+    "ffmpeg-python>=0.2.0",
 ]
 
 [project.optional-dependencies]

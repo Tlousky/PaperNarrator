@@ -370,7 +370,7 @@ class WorkflowBuilder:
             
             if output_format == "mp3":
                 output_path = os.path.join(output_dir, "combined.mp3")
-                bitrate = getattr(self.config, 'MP3_BITRATE', '128kbps')
+                bitrate = getattr(self.config, 'MP3_BITRATE', '128k')  # pydub expects format like '128k', not '128kbps'
                 combined.export(output_path, format="mp3", bitrate=bitrate)
                 state.status_message = f"Exported MP3 at {bitrate}"
             elif output_format == "wav":
