@@ -395,5 +395,56 @@ class WorkflowBuilder:
     async def packaging_ep3(self, state: PipelineState) -> PipelineState:
         """Task 10: Package as EP3 (EPUB 3 with Media Overlays)."""
         state.status_message = "Packaging as EP3 audiobook..."
-        # TODO: Implement in Task 10
+        
+        try:
+            if not state.final_output:
+                state.status = PipelineStatus.FAILED
+                state.error = "No audio file available for EP3 packaging."
+                return state
+            
+            from langgraph_pipeline.ep3_builder import create_ep3
+            import tempfile
+            import os
+            
+            # Prepare sections for EP3 (convert PaperSection to dict)
+            sections = []
+            cleaned_text_parts = []
+            if state.cleaned_sections:
+                for sec in state.cleaned_sections:
+                    if isinstance(sec, dict):
+                        sections.append(sec)
+                        cleaned_text_parts.append(sec.get("content", ""))
+                    else:
+                        sections.append({
+                            "title": sec.title,
+                            "content": sec.content
+                        })
+                        cleaned_text_parts.append(sec.content)
+            else:
+                sections = [{"title": "Chapter 1", "content": "No sections available."}]
+                cleaned_text_parts = ["No sections available."]
+            
+            # Create cleaned text from sections
+            cleaned_text = " ".join(cleaned_text_parts)
+            
+            # Generate output path
+            output_dir = os.path.dirname(state.final_output)
+            output_path = os.path.join(output_dir, "audiobook.epub")
+            
+            # Create EP3
+            result_path = create_ep3(
+                audio_path=state.final_output,
+                cleaned_text=cleaned_text,
+                sections=sections,
+                output_path=output_path
+            )
+            
+            state.final_output = result_path
+            state.status_message = f"EP3 audiobook created: {os.path.basename(result_path)}"
+            state.status = PipelineStatus.COMPLETED
+            
+        except Exception as e:
+            state.status = PipelineStatus.FAILED
+            state.error = f"EP3 packaging failed: {str(e)}"
+        
         return state
