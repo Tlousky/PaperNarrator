@@ -331,6 +331,7 @@ class WorkflowBuilder:
             state.audio_files = audio_files
             state.temp_path = temp_dir  # Store temp dir for cleanup later
             state.status_message = f"Generated {len(audio_files)} audio files"
+            state.status = PipelineStatus.COMPLETED
             
         except Exception as e:
             state.status = PipelineStatus.FAILED
@@ -341,9 +342,54 @@ class WorkflowBuilder:
     async def concatenating_audio(self, state: PipelineState) -> PipelineState:
         """Task 9: Concatenate audio files and convert to output format."""
         state.status_message = "Concatenating audio..."
-        # TODO: Implement in Task 9
-        # - Use pydub to concatenate WAVs
-        # - Convert to MP3 if needed
+        
+        try:
+            if not state.audio_files:
+                state.status = PipelineStatus.FAILED
+                state.error = "No audio files to concatenate."
+                return state
+            
+            from pydub import AudioSegment
+            import os
+            import shutil
+            
+            # Concatenate all WAV files
+            state.status_message = f"Concatenating {len(state.audio_files)} audio segments..."
+            
+            # Start with first file
+            combined = AudioSegment.from_file(state.audio_files[0], format="wav")
+            
+            # Append remaining files
+            for i, audio_path in enumerate(state.audio_files[1:], 2):
+                segment = AudioSegment.from_file(audio_path, format="wav")
+                combined += segment
+            
+            # Determine output format and path
+            output_format = getattr(self.config, 'OUTPUT_FORMAT', 'ep3').lower()
+            output_dir = os.path.dirname(state.audio_files[0])
+            
+            if output_format == "mp3":
+                output_path = os.path.join(output_dir, "combined.mp3")
+                bitrate = getattr(self.config, 'MP3_BITRATE', '128kbps')
+                combined.export(output_path, format="mp3", bitrate=bitrate)
+                state.status_message = f"Exported MP3 at {bitrate}"
+            elif output_format == "wav":
+                output_path = os.path.join(output_dir, "combined.wav")
+                combined.export(output_path, format="wav")
+                state.status_message = "Exported WAV file"
+            else:  # ep3 - keep as WAV for now, EP3 builder will handle it
+                output_path = os.path.join(output_dir, "combined.wav")
+                combined.export(output_path, format="wav")
+                state.status_message = "Exported WAV for EP3 packaging"
+            
+            state.final_output = output_path
+            state.status_message = f"Audio concatenation complete: {os.path.basename(output_path)}"
+            state.status = PipelineStatus.COMPLETED
+            
+        except Exception as e:
+            state.status = PipelineStatus.FAILED
+            state.error = f"Audio concatenation failed: {str(e)}"
+        
         return state
     
     async def packaging_ep3(self, state: PipelineState) -> PipelineState:
