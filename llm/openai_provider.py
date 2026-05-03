@@ -23,7 +23,8 @@ class OpenAIProvider(LLMProvider):
     ):
         self.model = model
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
-        self.base_url = base_url or os.getenv("OPENAI_BASE_URL")
+        # Support both OPENAI_API_BASE (from LLM.md) and OPENAI_BASE_URL
+        self.base_url = base_url or os.getenv("OPENAI_API_BASE") or os.getenv("OPENAI_BASE_URL")
         self.client = AsyncOpenAI(
             api_key=self.api_key,
             base_url=self.base_url

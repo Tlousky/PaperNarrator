@@ -51,7 +51,7 @@ class TestGradioApp:
             
             # Call the async generator
             result = []
-            async for item in process_url("https://example.com/paper.pdf", "ep3", "openai", False):
+            async for item in process_url("https://example.com/paper.pdf", "ep3", "openai", False, "Emma"):
                 result.append(item)
             
             # Verify PipelineState was created with correct parameters
@@ -89,7 +89,7 @@ class TestGradioApp:
             # Simulate a file path
             file_path = "/tmp/test.pdf"
             result = []
-            async for item in process_file(file_path, "ep3", "openai", False):
+            async for item in process_file(file_path, "ep3", "openai", False, "Emma"):
                 result.append(item)
             
             mock_state_class.assert_called_once()
@@ -122,7 +122,7 @@ class TestGradioApp:
             
             text = "Hello world, this is a test paper."
             result = []
-            async for item in process_text(text, "ep3", "openai", False):
+            async for item in process_text(text, "ep3", "openai", False, "Emma"):
                 result.append(item)
             
             mock_state_class.assert_called_once()
@@ -149,7 +149,7 @@ class TestGradioApp:
             mock_graph.stream = mock_stream
             
             result = []
-            async for item in process_url("https://example.com/paper.pdf", "ep3", "openai", False):
+            async for item in process_url("https://example.com/paper.pdf", "ep3", "openai", False, "Emma"):
                 result.append(item)
             
             # Should return error message

@@ -33,23 +33,38 @@ class TextChunk(BaseModel):
         return v
 
 
+class ChapterInfo(BaseModel):
+    """Represents a chapter in the final M4B audiobook."""
+    title: str = Field(..., description="Chapter title")
+    start_ms: int = Field(..., description="Start time in milliseconds")
+    end_ms: int = Field(..., description="End time in milliseconds")
+
+
 class PipelineState(BaseModel):
     """State of the LangGraph pipeline."""
     # Input
     source_type: str = Field(..., description="Input type: 'url', 'file', or 'text'")
     content: str = Field(..., description="The actual content (URL, file path, or raw text)")
     temp_path: Optional[str] = Field(None, description="Temporary file path if downloaded or uploaded")
+    voice_profile: str = Field(default="Emma", description="Voice profile to use for TTS")
     
     # Processing stages
     raw_text: Optional[str] = Field(None, description="Raw extracted text from PDF")
     cleaned_sections: Optional[List[PaperSection]] = Field(None, description="Extracted and cleaned sections")
     chunks: Optional[List[TextChunk]] = Field(None, description="Text chunks ready for TTS")
     audio_files: List[str] = Field(default_factory=list, description="Paths to generated audio files (WAV)")
+    chapters: List[ChapterInfo] = Field(default_factory=list, description="List of chapters with timestamps")
     
     # Output
-    final_output: Optional[str] = Field(None, description="Path to final output file (EP3/MP3/WAV)")
+    final_output: Optional[str] = Field(None, description="Path to final output file (M4B/MP3/WAV)")
     
     # Metadata
+    run_id: Optional[str] = Field(None, description="Unique ID for this run (timestamp-based)")
+    session_id: Optional[str] = Field(None, description="Session ID for grouping traces in Langfuse")
+    user_id: Optional[str] = Field(None, description="User ID for tracking usage in Langfuse")
+    tags: List[str] = Field(default_factory=list, description="Tags for categorizing traces in Langfuse")
+    version: Optional[str] = Field(None, description="Application version for Langfuse tracing")
+    run_dir: Optional[str] = Field(None, description="Directory for intermediate and final outputs")
     total_cost: float = Field(0.0, description="Total LLM API cost in USD")
     status: PipelineStatus = Field(default=PipelineStatus.PENDING, description="Current pipeline status")
     error: Optional[str] = Field(None, description="Error message if failed")

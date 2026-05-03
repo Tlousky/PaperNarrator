@@ -13,51 +13,38 @@ class VibeVoiceTTS:
     """
     Wrapper for Microsoft VibeVoice-Realtime-0.5B TTS model.
     
-    Generates long-form speech from text using streaming inference.
-    """
-
-import os
-import copy
-from typing import Optional
-import torch
-
-
-class VibeVoiceTTS:
-    """
-    Wrapper for Microsoft VibeVoice-Realtime-0.5B TTS model.
-    
-    Generates long-form speech from text using streaming inference.
+    Generates long-form speech from text using streaming inference
+    with pre-computed voice profiles (Carter, Davis, Emma).
     """
     
+    # Hard limit: 0.5B model supports up to ~60 minutes at 150 wpm = ~9000 words.
+    # We set a conservative ceiling of 10000 words.
+    MAX_WORDS = 10000
+
     def __init__(
         self,
         model_name: str = "microsoft/VibeVoice-Realtime-0.5B",
         device: Optional[str] = None,
         speaker_name: str = "Carter",
-        cfg_scale: float = 1.5
+        cfg_scale: float = 1.5,
+        num_steps: int = 20
     ):
         """
         Initialize VibeVoice TTS.
         
         Args:
-            model_name: HuggingFace model ID (default: microsoft/VibeVoice-Realtime-0.5B)
+            model_name: Local model path or HuggingFace model ID
             device: 'cuda', 'mps', or 'cpu' (None for auto-detection)
-            speaker_name: Voice preset name (default: Carter)
+            speaker_name: Voice profile name - one of: Carter, Davis, Emma
             cfg_scale: Classifier-Free Guidance scale (default: 1.5)
-        """
-        Initialize VibeVoice TTS.
-        
-        Args:
-            model_name: HuggingFace model ID (default: microsoft/VibeVoice-Realtime-0.5B)
-            device: 'cuda', 'mps', or 'cpu' (None for auto-detection)
-            speaker_name: Voice preset name (default: Carter)
-            cfg_scale: Classifier-Free Guidance scale (default: 1.5)
+            num_steps: DDPM inference steps (default: 20, higher = better quality)
         """
         self.model_name = model_name
         self.device = device or ("cuda" if torch.cuda.is_available() 
                                 else ("mps" if torch.backends.mps.is_available() else "cpu"))
         self.speaker_name = speaker_name
         self.cfg_scale = cfg_scale
+        self.num_steps = num_steps or int(os.getenv("VIBEVOICE_NUM_STEPS", 20))
         
         self.processor = None
         self.model = None
@@ -80,6 +67,13 @@ class VibeVoiceTTS:
                 VibeVoiceStreamingForConditionalGenerationInference
             )
             from vibevoice.processor.vibevoice_streaming_processor import VibeVoiceStreamingProcessor
+            
+            # Verify model has generate() before proceeding
+            if not hasattr(VibeVoiceStreamingForConditionalGenerationInference, 'generate'):
+                raise RuntimeError(
+                    "VibeVoiceStreamingForConditionalGenerationInference is missing the "
+                    "'generate' method. The installed vibevoice package may be incompatible."
+                )
             
             # Load processor
             self.processor = VibeVoiceStreamingProcessor.from_pretrained(self.model_name)
@@ -151,29 +145,40 @@ class VibeVoiceTTS:
                     raise
             
             self.model.eval()
-            self.model.set_ddpm_inference_steps(num_steps=5)
+            self.model.set_ddpm_inference_steps(num_steps=self.num_steps)
             
             # Load voice sample
             voice_path = os.path.join(self.model_name, "voices", f"{self.speaker_name}.pt")
             if not os.path.exists(voice_path):
-                raise FileNotFoundError(f"Voice sample not found for {self.speaker_name}. Looked in {voice_path}")
+                raise FileNotFoundError(
+                    f"Voice sample not found for '{self.speaker_name}'. "
+                    f"Looked in: {voice_path}. "
+                    f"Run download_vibevoice.py to download voices."
+                )
             
             # Load voice preset
-            # Note: weights_only=False is required because voice files contain BaseModelOutputWithPast objects
-            # which are not basic tensors. Voice files are official Microsoft files from GitHub.
+            # Note: weights_only=False is required because voice files contain
+            # BaseModelOutputWithPast objects (not basic tensors).
+            # Voice files are official Microsoft files from GitHub.
             self._voice_sample = torch.load(
                 voice_path,
                 map_location=self.device,
                 weights_only=False
             )
             
-            # Validate voice file structure (security check)
+            # Validate voice file structure
             if not isinstance(self._voice_sample, dict):
-                raise ValueError(f"Invalid voice file format for {self.speaker_name}: expected dict, got {type(self._voice_sample)}")
+                raise ValueError(
+                    f"Invalid voice file format for '{self.speaker_name}': "
+                    f"expected dict, got {type(self._voice_sample)}"
+                )
             
             expected_keys = {'lm', 'tts_lm', 'neg_lm', 'neg_tts_lm'}
             if not expected_keys.issubset(set(self._voice_sample.keys())):
-                raise ValueError(f"Invalid voice file for {self.speaker_name}: missing keys {expected_keys - set(self._voice_sample.keys())}")
+                raise ValueError(
+                    f"Invalid voice file for '{self.speaker_name}': "
+                    f"missing keys {expected_keys - set(self._voice_sample.keys())}"
+                )
             
             self._loaded = True
             print(f"Model loaded successfully on {self.device}")
@@ -188,7 +193,7 @@ class VibeVoiceTTS:
         word_count: Optional[int] = None
     ) -> str:
         """
-        Generate audio from text using VibeVoice-1.5B.
+        Generate audio from text using VibeVoice-Realtime-0.5B.
         
         Args:
             text: Text to convert to speech
@@ -199,23 +204,22 @@ class VibeVoiceTTS:
             Path to generated audio file
             
         Raises:
-            ValueError: If word count exceeds limits (~12000 words for 90 min)
+            ValueError: If word count exceeds MAX_WORDS limit
             RuntimeError: If generation fails
         """
         if not self._loaded:
             self._load_model()
         
-        # Validate word count
+        # Calculate word count if not provided
         if word_count is None:
             word_count = len(text.split())
         
-        # VibeVoice-1.5B supports ~90 minutes at ~150 wpm = ~13,500 words
-        # We set a safe limit of 12000 words
-        if word_count > 12000:
+        # Validate word count
+        if word_count > self.MAX_WORDS:
             raise ValueError(
-                f"Text exceeds 12000 words ({word_count} words). "
-                f"VibeVoice-1.5B supports ~90 minutes of audio. "
-                f"Please use smaller chunks or split the text."
+                f"Text exceeds {self.MAX_WORDS} words ({word_count} words). "
+                f"VibeVoice-0.5B supports ~60 minutes of audio. "
+                f"Please split into smaller chunks."
             )
         
         if word_count > 8500:
@@ -224,7 +228,7 @@ class VibeVoiceTTS:
         print(f"Generating audio for {word_count} words...")
         
         try:
-            # Prepare inputs using the streaming processor
+            # Prepare inputs using the streaming processor with cached voice
             inputs = self.processor.process_input_with_cached_prompt(
                 text=text,
                 cached_prompt=self._voice_sample,

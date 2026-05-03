@@ -32,8 +32,6 @@ def main():
     )
     print(f"Model downloaded to {model_dir}")
     
-    # Download voice samples from GitHub (they're not on HuggingFace)
-    # Available English voices: Carter, Davis, Emma, Frank, Grace, Mike
     voices = [
         ("Carter", "en-Carter_man.pt"),
         ("Davis", "en-Davis_man.pt"),
@@ -45,7 +43,7 @@ def main():
         url = f"https://raw.githubusercontent.com/microsoft/VibeVoice/main/demo/voices/streaming_model/{filename}"
         dest_path = f"{voices_dir}/{name}.pt"
         download_from_github(url, dest_path)
-    
+        
     print(f"Voice samples downloaded to {voices_dir}")
     print(f"  Available: {[v[0] for v in voices]}")
     

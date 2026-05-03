@@ -21,7 +21,10 @@ async def _extract_pdf_text(path: str) -> str:
         doc = fitz.open(path)
         text = ""
         for page in doc:
-            text += page.get_text("text")
+            # Using blocks mode is more robust against character-spacing distortion
+            blocks = page.get_text("blocks")
+            for b in blocks:
+                text += b[4] + "\n"
         doc.close()
         return text
     except Exception as e:
@@ -92,13 +95,15 @@ async def _extract_sections(text: str) -> List[Dict]:
         List of section dictionaries with title, content, and word_count
     """
     # Define section patterns (case insensitive)
+    # We look for the header at the start of a line or preceded by newlines
+    header_prefix = r"(?:\n\s*|^)"
     patterns = {
-        "Abstract": r"\babstract\b.*?(?=\b(introduction|methods|material|results|discussion|conclusion|acknowledgement|reference|literature|author|funding|supplement|appendix|keyword)\b|$)",
-        "Introduction": r"\bintroduction\b.*?(?=\b(methods|material|results|discussion|conclusion|acknowledgement|reference|literature|author|funding|supplement|appendix|keyword)\b|$)",
-        "Methods": r"\b(methods?|methodology|material\s+and\s+methods?|experimental\s+methods?|procedures?)\b.*?(?=\b(results?|discussion|conclusion|acknowledgement|reference|literature|author|funding|supplement|appendix|keyword)\b|$)",
-        "Results": r"\bresults?\b.*?(?=\b(discussion|conclusion|acknowledgement|reference|literature|author|funding|supplement|appendix|keyword)\b|$)",
-        "Discussion": r"\bdiscussion\b.*?(?=\b(conclusion|acknowledgement|reference|literature|author|funding|supplement|appendix|keyword)\b|$)",
-        "Conclusion": r"\bconclusion\b.*?(?=\b(acknowledgement|reference|literature|author|funding|supplement|appendix|keyword)\b|$)",
+        "Abstract": rf"{header_prefix}\babstract\b.*?(?={header_prefix}\b(introduction|methods|material|results|discussion|conclusion|acknowledgement|reference|literature|author|funding|supplement|appendix|keyword)\b|$)",
+        "Introduction": rf"{header_prefix}\bintroduction\b.*?(?={header_prefix}\b(methods|material|results|discussion|conclusion|acknowledgement|reference|literature|author|funding|supplement|appendix|keyword)\b|$)",
+        "Methods": rf"{header_prefix}\b(methods?|methodology|material\s+and\s+methods?|experimental\s+methods?|procedures?)\b.*?(?={header_prefix}\b(results?|discussion|conclusion|acknowledgement|reference|literature|author|funding|supplement|appendix|keyword)\b|$)",
+        "Results": rf"{header_prefix}\bresults?\b.*?(?={header_prefix}\b(discussion|conclusion|acknowledgement|reference|literature|author|funding|supplement|appendix|keyword)\b|$)",
+        "Discussion": rf"{header_prefix}\bdiscussion\b.*?(?={header_prefix}\b(conclusion|acknowledgement|reference|literature|author|funding|supplement|appendix|keyword)\b|$)",
+        "Conclusion": rf"{header_prefix}\bconclusion\b.*?(?={header_prefix}\b(acknowledgement|reference|literature|author|funding|supplement|appendix|keyword)\b|$)",
     }
     
     sections = []
@@ -122,6 +127,16 @@ async def _extract_sections(text: str) -> List[Dict]:
     # Sort by position in text to preserve document order
     sections.sort(key=lambda x: x["start_pos"])
     
+    # Fallback for plain text without scientific headers
+    if not sections:
+        sections.append({
+            "title": "General Content",
+            "content": text.strip(),
+            "word_count": len(text.split()),
+            "start_pos": 0,
+            "end_pos": len(text)
+        })
+    
     return sections
 
 
@@ -143,12 +158,13 @@ async def _remove_citations(text: str) -> str:
     Returns:
         Text without citations
     """
-    # Remove [1], [2-5], [10-15]
-    text = re.sub(r"\[\d+(?:-\d+)?\]", "", text)
-    # Remove (Smith, 2023), (Smith et al., 2023), (van der Waals, 2023)
-    text = re.sub(r"\([A-Za-z]+(?:\s+[A-Za-z]+)*(?:\s+et\.?\s+al\.?)?\,?\s*\d{4}\)", "", text)
-    # Remove superscript numbers
-    text = re.sub(r"\^[0-9]+", "", text)
+    # Remove [1], [2-5], [10-15], [1, 7–9]
+    text = re.sub(r"\[\d+(?:[\s,–-]+\d+)*\]", "", text)
+    # Remove (Smith, 2023), (Smith & Jones, 2023), (Smith et al., 2023)
+    # Also handles (NASA, 2024), ("Title", 2024)
+    text = re.sub(r"\((?:[A-Za-z0-9\s&,.\-\"\']+(?:\s+et\.?\s+al\.?)?\,?\s*)?\d{4}\)", "", text)
+    # Remove superscript numbers (literal ^1 or Unicode ¹)
+    text = re.sub(r"[\^¹²³⁴⁵⁶⁷⁸⁹⁰]+[0-9]*", "", text)
     return text
 
 
@@ -174,6 +190,10 @@ async def _remove_metadata(text: str) -> str:
     """
     # Remove Keywords line
     text = re.sub(r"^keywords?:\s*.*?\n", "", text, flags=re.MULTILINE | re.IGNORECASE)
+    # Remove arXiv identifiers (e.g. arXiv:2603.03329v1 [cs.CL] 10 Feb 2026)
+    text = re.sub(r"arXiv:\d+\.\d+(?:v\d+)?\s+\[[a-zA-Z.-]+\]\s+\d+\s+\w+\s+\d+", "", text, flags=re.IGNORECASE)
+    # Remove common PDF headers/footers
+    text = re.sub(r"(?:Downloaded from|Published in|Copyright|All rights reserved).*?\n", "", text, flags=re.IGNORECASE)
     # Remove References/Bibliography section
     text = re.sub(r"(references?|bibliography|literature\s+cited)\s*:?.*", "", text, flags=re.DOTALL | re.IGNORECASE)
     # Remove Acknowledgements

@@ -7,28 +7,30 @@ name = "paper-narrator"
 version = "0.1.0"
 description = "Convert scientific papers to narrated EP3 audiobooks with AI-powered text cleaning and visual descriptions"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11,<3.14"
 dependencies = [
     "gradio>=4.44.0",
     "langgraph>=0.2.56",
-    "transformers>=4.44.0",
-    "torch>=2.4.0",
-    "accelerate>=0.33.0",
+    "transformers>=4.51.3,<5.0.0",
+    "torch",
+    "torchvision",
+    "torchaudio",
+    "accelerate",
     "pymupdf>=1.24.0",
-    "pydub>=0.25.1",
+    "pydub",
     "ebooklib>=0.18",
     "openai>=1.50.0",
     "google-generativeai>=0.8.0",
     "anthropic>=0.37.0",
     "ollama>=0.3.0",
-    "requests>=2.32.0",
+    "requests",
     "python-dotenv>=1.0.1",
-    "pillow>=10.4.0",
-    "numpy>=1.26.0",
-    "scipy>=1.13.0",
+    "pillow>=10.0.0",
+    "numpy",
+    "scipy",
     "vibevoice @ git+https://github.com/microsoft/VibeVoice.git",
-    "av>=12.0.0",
-    "librosa>=0.10.0",
+    "av",
+    "librosa",
     "ffmpeg-python>=0.2.0",
     "langfuse>=2.0.0",
     "reportlab>=4.0.0",
@@ -45,7 +47,31 @@ dev = [
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",
+    "pytest-asyncio>=0.23.0",
+    "pytest-forked>=1.4.0; sys_platform != 'win32'",
 ]
 
 [tool.setuptools.packages.find]
 include = ["langgraph_pipeline", "llm", "tts", "config", "tests*"]
+
+# Pin torch, torchvision, torchaudio to the CUDA 12.8 wheel index.
+# This ensures GPU support on fresh installs (uv sync, Docker builds, CI).
+# Falls back gracefully to CPU if CUDA is unavailable at runtime
+# (VibeVoiceTTS auto-detects device).
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
+torchvision = { index = "pytorch-cu128" }
+torchaudio = { index = "pytorch-cu128" }
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+markers = [
+    "asyncio: mark a test as async",
+    "forked: run test in a forked subprocess (unix only)",
+    "e2e: end-to-end tests requiring real models",
+]

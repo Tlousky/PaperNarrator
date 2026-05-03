@@ -13,16 +13,19 @@ Convert scientific papers to narrated EP3 audiobooks with AI-powered text cleani
 
 ## Quick Start
 
+**Requirements**: Python 3.11+ (3.11 recommended for best package compatibility), 8GB+ RAM, NVIDIA GPU recommended for TTS
+
 ### Option 1: Docker (Recommended)
 
 ```bash
-# Clone and build
-git clone https://github.com/yourusername/PaperNarrator.git
-cd PaperNarrator
-docker build -t paper-narrator .
+# CPU mode (slow TTS)
+docker-compose --profile cpu up
 
-# Run with environment variables
-docker run -p 7860:7860 -e OPENAI_API_KEY=your-key-here paper-narrator
+# GPU mode (fast TTS - requires NVIDIA)
+docker-compose --profile gpu up
+
+# With Ollama (local LLM)
+docker-compose --profile ollama --profile cpu up
 ```
 
 ### Option 2: Local Setup with UV
@@ -31,9 +34,13 @@ docker run -p 7860:7860 -e OPENAI_API_KEY=your-key-here paper-narrator
 # Install UV (if not already installed)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Create virtual environment and install dependencies
-uv venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
+# Run setup script (installs deps, downloads VibeVoice model, installs ffmpeg)
+bash setup.sh  # Linux/Mac
+setup.bat      # Windows
+
+# Or manually:
+uv venv --python 3.11 .venv  # Use Python 3.11 for best compatibility
+source .venv/bin/activate    # Windows: .venv\Scripts\activate
 uv pip install -e .
 
 # Copy and configure environment
@@ -41,7 +48,7 @@ cp .env.example .env
 # Edit .env and add your API keys
 
 # Run the application
-python -m app
+uv run python app.py
 ```
 
 ## Configuration

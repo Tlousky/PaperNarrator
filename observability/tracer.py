@@ -15,10 +15,13 @@ from pathlib import Path
 
 # Only import LangFuse if available
 try:
-    from langfuse import Langfuse
+    import langfuse as lf_module
+    from langfuse import Langfuse, propagate_attributes
     LANGFUSE_AVAILABLE = True
 except ImportError:
+    lf_module = None
     LANGFUSE_AVAILABLE = False
+    propagate_attributes = None
 
 
 class LangfuseTracer:
@@ -79,18 +82,35 @@ class LangfuseTracer:
     def trace_graph(self, graph, graph_name: str = "paper-narrator"):
         """
         Wrap a LangGraph graph with tracing.
-        
-        Args:
-            graph: Compiled LangGraph StateGraph
-            graph_name: Name for the trace
-            
-        Returns:
-            Traced graph (wrapped) that logs to both LangFuse and markdown
         """
-        # Create a wrapper that adds tracing
-        original_invoke = graph.invoke
+        # Create wrappers that add tracing
+        original_ainvoke = graph.ainvoke
+        original_astream = graph.astream
         
-        async def traced_invoke(input_data, config=None):
+        def extract_metadata(input_data):
+            session_id = None
+            user_id = None
+            tags = None
+            version = None
+            
+            try:
+                if hasattr(input_data, 'session_id'):
+                    session_id = input_data.session_id
+                    user_id = getattr(input_data, 'user_id', None)
+                    tags = getattr(input_data, 'tags', [])
+                    version = getattr(input_data, 'version', None)
+                elif isinstance(input_data, dict):
+                    session_id = input_data.get('session_id')
+                    user_id = input_data.get('user_id')
+                    tags = input_data.get('tags', [])
+                    version = input_data.get('version')
+                
+            except Exception:
+                pass
+            
+            return session_id, user_id, tags, version
+
+        async def traced_ainvoke(input_data, config=None, **kwargs):
             run_id = config.get('run_id', None) if config else None
             if not run_id:
                 import uuid
@@ -101,7 +121,7 @@ class LangfuseTracer:
                 'graph_name': graph_name,
                 'timestamp': datetime.now().isoformat(),
                 'status': 'running',
-                'input': str(input_data)[:500],  # Truncate for safety
+                'input': str(input_data)[:500],
                 'nodes_executed': [],
                 'llm_calls': [],
                 'cost': 0.0,
@@ -109,71 +129,171 @@ class LangfuseTracer:
                 'error': None
             }
             
-            # Start LangFuse trace if available
-            langfuse_trace = None
+            session_id, user_id, tags, version = extract_metadata(input_data)
+            
+            langfuse_ctx = None
             if not self.local_mode and self.langfuse_client:
-                langfuse_trace = self.langfuse_client.trace(
+                langfuse_ctx = self.langfuse_client.start_as_current_observation(
                     name=graph_name,
-                    input=input_data,
-                    id=run_id
+                    input=input_data
                 )
             
+            prop_ctx = None
+            if propagate_attributes:
+                prop_ctx = propagate_attributes(
+                    session_id=session_id,
+                    user_id=user_id,
+                    tags=tags,
+                    version=version
+                )
+
+            start_time = datetime.now()
             try:
-                start_time = datetime.now()
+                async def execute():
+                    if prop_ctx:
+                        with prop_ctx:
+                            return await original_ainvoke(input_data, config, **kwargs)
+                    else:
+                        return await original_ainvoke(input_data, config, **kwargs)
+
+                if langfuse_ctx:
+                    with langfuse_ctx as trace:
+                        # Update trace with session info
+                        trace.update(
+                            session_id=session_id,
+                            user_id=user_id,
+                            tags=tags,
+                            version=version
+                        )
+                        result = await execute()
+                        
+                        end_time = datetime.now()
+                        duration = (end_time - start_time).total_seconds()
+                        trace_data['status'] = 'completed'
+                        trace_data['duration'] = duration
+                        trace_data['output'] = str(result)[:500]
+                        if isinstance(result, dict):
+                            trace_data['cost'] = result.get('total_cost', 0.0)
+                            trace_data['nodes_executed'] = self._extract_nodes_executed(result)
+                        trace.update(output=result)
+                else:
+                    result = await execute()
+                    
+                    end_time = datetime.now()
+                    duration = (end_time - start_time).total_seconds()
+                    trace_data['status'] = 'completed'
+                    trace_data['duration'] = duration
+                    trace_data['output'] = str(result)[:500]
+                    if isinstance(result, dict):
+                        trace_data['cost'] = result.get('total_cost', 0.0)
+                        trace_data['nodes_executed'] = self._extract_nodes_executed(result)
                 
-                # Execute graph
-                result = await original_invoke(input_data, config)
-                
-                end_time = datetime.now()
-                duration = (end_time - start_time).total_seconds()
-                
-                trace_data['status'] = 'completed'
-                trace_data['duration'] = duration
-                trace_data['output'] = str(result)[:500]
-                
-                # Update with actual state data if available
-                if isinstance(result, dict):
-                    trace_data['cost'] = result.get('total_cost', 0.0)
-                    trace_data['nodes_executed'] = self._extract_nodes_executed(result)
-                    if 'error' in result and result['error']:
-                        trace_data['status'] = 'failed'
-                        trace_data['error'] = result['error']
-                
-                # Write markdown trace
                 self.write_markdown_trace(trace_data)
-                
-                # Update LangFuse trace
-                if langfuse_trace:
-                    langfuse_trace.update(
-                        output=result,
-                        status=trace_data['status'],
-                        usage={
-                            'cost': trace_data['cost'],
-                            'units': 'USD'
-                        }
-                    )
-                
                 return result
-                
             except Exception as e:
                 trace_data['status'] = 'failed'
                 trace_data['error'] = str(e)
                 trace_data['duration'] = (datetime.now() - start_time).total_seconds()
-                
-                # Write error trace
                 self.write_markdown_trace(trace_data)
-                
-                # Update LangFuse trace
-                if langfuse_trace:
-                    langfuse_trace.update(
-                        status='failed',
-                        output={'error': str(e)}
-                    )
-                
                 raise
-        
-        # Patch the invoke method
-        graph.invoke = traced_invoke
+
+        async def traced_astream(input_data, config=None, **kwargs):
+            run_id = config.get('run_id', None) if config else None
+            if not run_id:
+                import uuid
+                run_id = str(uuid.uuid4())[:8]
+            
+            trace_data = {
+                'run_id': run_id,
+                'graph_name': graph_name,
+                'timestamp': datetime.now().isoformat(),
+                'status': 'running',
+                'input': str(input_data)[:500],
+                'nodes_executed': [],
+                'llm_calls': [],
+                'cost': 0.0,
+                'duration': 0.0,
+                'error': None
+            }
+            
+            session_id, user_id, tags, version = extract_metadata(input_data)
+            
+            langfuse_ctx = None
+            if not self.local_mode and self.langfuse_client:
+                langfuse_ctx = self.langfuse_client.start_as_current_observation(
+                    name=graph_name,
+                    input=input_data
+                )
+            prop_ctx = None
+            if propagate_attributes:
+                prop_ctx = propagate_attributes(
+                    session_id=session_id,
+                    user_id=user_id,
+                    tags=tags,
+                    version=version
+                )
+
+            start_time = datetime.now()
+            try:
+                async def execute_stream():
+                    if prop_ctx:
+                        with prop_ctx:
+                            async for chunk in original_astream(input_data, config, **kwargs):
+                                yield chunk
+                    else:
+                        async for chunk in original_astream(input_data, config, **kwargs):
+                            yield chunk
+
+                last_chunk = None
+                if langfuse_ctx:
+                    with langfuse_ctx as trace:
+                        # Update trace with session info
+                        trace.update(
+                            session_id=session_id,
+                            user_id=user_id,
+                            tags=tags,
+                            version=version
+                        )
+                        async for chunk in execute_stream():
+                            yield chunk
+                            last_chunk = chunk
+                        
+                        result = last_chunk
+                        end_time = datetime.now()
+                        duration = (end_time - start_time).total_seconds()
+                        trace_data['status'] = 'completed'
+                        trace_data['duration'] = duration
+                        trace_data['output'] = str(result)[:500]
+                        if isinstance(result, dict):
+                            trace_data['cost'] = result.get('total_cost', 0.0)
+                            trace_data['nodes_executed'] = self._extract_nodes_executed(result)
+                        trace.update(output=result)
+                else:
+                    async for chunk in execute_stream():
+                        yield chunk
+                        last_chunk = chunk
+                    
+                    result = last_chunk
+                    end_time = datetime.now()
+                    duration = (end_time - start_time).total_seconds()
+                    trace_data['status'] = 'completed'
+                    trace_data['duration'] = duration
+                    trace_data['output'] = str(result)[:500]
+                    if isinstance(result, dict):
+                        trace_data['cost'] = result.get('total_cost', 0.0)
+                        trace_data['nodes_executed'] = self._extract_nodes_executed(result)
+                
+                self.write_markdown_trace(trace_data)
+            except Exception as e:
+                trace_data['status'] = 'failed'
+                trace_data['error'] = str(e)
+                trace_data['duration'] = (datetime.now() - start_time).total_seconds()
+                self.write_markdown_trace(trace_data)
+                raise
+
+        # Patch methods
+        graph.ainvoke = traced_ainvoke
+        graph.astream = traced_astream
         return graph
     
     def write_markdown_trace(self, trace_data: Dict[str, Any]):

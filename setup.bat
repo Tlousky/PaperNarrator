@@ -10,8 +10,37 @@ if not exist "pyproject.toml" (
     exit /b 1
 )
 
-REM Step 1: Setup VibeVoice
-echo [Step 1/2] Setting up VibeVoice TTS model...
+REM Step 1: Install Python dependencies
+echo [Step 1/3] Installing Python dependencies...
+echo.
+where uv >nul 2>&1
+if %ERRORLEVEL% equ 0 (
+    REM Create venv with Python 3.11 if available (better package compatibility)
+    where python3.11 >nul 2>&1
+    if %ERRORLEVEL% equ 0 (
+        uv venv --python 3.11 .venv 2>nul || uv venv .venv
+    ) else (
+        uv venv .venv
+    )
+    uv pip install -e . --compile-bytecode
+    echo Python dependencies installed successfully.
+    echo.
+    echo [Step 1b/3] Installing CUDA-enabled PyTorch (cu128)...
+    uv pip install --python .venv torch==2.11.0 torchvision==0.26.0 torchaudio==2.11.0 --index-url https://download.pytorch.org/whl/cu128
+    echo CUDA PyTorch installed.
+) else (
+    echo Warning: 'uv' not found. Installing with pip...
+    pip install -e .
+    echo.
+    echo Installing CUDA-enabled PyTorch...
+    pip install torch==2.11.0 torchvision==0.26.0 torchaudio==2.11.0 --index-url https://download.pytorch.org/whl/cu128
+)
+
+echo.
+echo.
+
+REM Step 2: Setup VibeVoice
+echo [Step 2/3] Setting up VibeVoice TTS model...
 echo.
 if exist "setup_vibevoice.bat" (
     call setup_vibevoice.bat
@@ -25,8 +54,8 @@ if exist "setup_vibevoice.bat" (
 echo.
 echo.
 
-REM Step 2: Setup ffmpeg
-echo [Step 2/2] Setting up ffmpeg...
+REM Step 3: Setup ffmpeg
+echo [Step 3/3] Setting up ffmpeg...
 echo.
 if exist "download_ffmpeg.bat" (
     call download_ffmpeg.bat
