@@ -1,15 +1,20 @@
 # PaperNarrator
 
-Convert scientific papers to narrated EP3 audiobooks with AI-powered text cleaning and visual descriptions.
+Convert scientific papers to narrated M4B audiobooks with AI-powered text cleaning and visual descriptions.
 
 ## Features
 
-- **EP3 Output**: Generate audiobooks with embedded chapter markers and metadata (EP3 format with MP3 audio)
-- **Multiple Input Sources**: Accept papers via URL, PDF upload, or raw text
-- **LLM-Powered Text Cleaning**: Automatically clean and structure academic text for natural narration
-- **VLM Figure Descriptions**: Vision Language Models describe figures and tables for accessibility
-- **Multi-Provider LLM Support**: OpenAI, Google Gemini, Anthropic Claude, or local Ollama
-- **VibeVoice TTS**: High-quality neural text-to-speech with natural prosody
+- **M4B Audiobook Output**: Generate audiobooks with embedded chapter markers and metadata (AAC audio in M4B container).
+- **Multiple Formats**: Support for M4B, MP3, and WAV outputs.
+- **Multiple Input Sources**: Accept papers via URL, PDF upload, or raw text.
+- **High-Fidelity PDF Extraction**: Robust block-based text extraction resolves character-spacing distortions.
+- **LLM-Powered Text Cleaning**: 
+    - **Citation Removal**: Specialized skills to remove academic citations (APA, MLA, IEEE, etc.) while preserving narrative mentions.
+    - **Figure & Diagram Debris Cleaning**: Targeted removal of non-narrative technical artifacts (chart coordinates, figure labels).
+- **VLM Figure Descriptions**: Vision Language Models describe figures and tables for accessibility.
+- **Langfuse Observability**: Full session tracking and monitoring of LLM traces, costs, and quality.
+- **Multi-Provider LLM Support**: OpenAI, Google Gemini, Anthropic Claude, or local Ollama.
+- **VibeVoice TTS**: High-quality neural text-to-speech with natural prosody.
 
 ## Quick Start
 
@@ -46,18 +51,9 @@ uv pip install -e .
 # Copy and configure environment
 cp .env.example .env
 # Edit .env and add your API keys
-
-# Run the application
-uv run python app.py
 ```
 
 ## Configuration
-
-Create a `.env` file from `.env.example`:
-
-```bash
-cp .env.example .env
-```
 
 ### Environment Variables
 
@@ -72,19 +68,14 @@ cp .env.example .env
 | `ANTHROPIC_MODEL` | Claude model name | `claude-3-5-sonnet-20241022` |
 | `OLLAMA_MODEL` | Ollama model name | `llama3.2` |
 | `VIBEVOICE_DEVICE` | TTS device (cuda:0, cpu) | `cuda:0` |
-| `OUTPUT_FORMAT` | Output format (ep3, mp3) | `ep3` |
-| `MP3_BITRATE` | Audio bitrate in kbps | `128` |
+| `OUTPUT_FORMAT` | Output format (m4b, mp3, wav) | `m4b` |
+| `MP3_BITRATE` | Audio bitrate in kbps | `128k` |
 | `VLM_ENABLED` | Enable figure descriptions | `false` |
+| `LANGFUSE_HOST` | Langfuse server URL | `http://localhost:3000` |
 
 ## Setup VibeVoice Models
 
-Before running, download the VibeVoice-1.5B model and voice samples:
-
-### Linux/Mac
-
-```bash
-./setup_vibevoice.sh
-```
+Before running, download the VibeVoice-Realtime-0.5B model and voice samples:
 
 ### Windows
 
@@ -93,57 +84,27 @@ setup_vibevoice.bat
 ```
 
 This downloads:
-- **Model**: `microsoft/VibeVoice-1.5B` (~2GB) to `./models/microsoft/VibeVoice-1.5B/`
-- **Voice samples**: Carter, Wayne, Avery Carter (~10MB each)
-- **Test data**: Sample text file
+- **Model**: `microsoft/VibeVoice-Realtime-0.5B` to `./models/microsoft/VibeVoice-Realtime-0.5B/`
+- **Voice samples**: Carter, Davis, Emma
 
-### Manual Download
+## Observability
 
-```bash
-pip install huggingface_hub
+PaperNarrator integrates with **Langfuse** for real-time monitoring of:
+- **Sessions**: Track multiple paper generations per user session.
+- **Costs**: monitor LLM token usage and estimated cost per run.
+- **Traces**: Inspect the multi-step cleaning and chunking logic.
 
-python -c "
-from huggingface_hub import snapshot_download
-snapshot_download('microsoft/VibeVoice-1.5B', local_dir='./models/microsoft/VibeVoice-1.5B', resume_download=True)
-"
-```
-
-## Quick Test
-
-```bash
-python -c "
-from tts.vibevoice import VibeVoiceTTS
-
-tts = VibeVoiceTTS(
-    model_name='./models/microsoft/VibeVoice-1.5B',
-    speaker_name='Carter'
-)
-
-tts.generate_audio(
-    text='Hello world. This is a test.',
-    output_path='output.wav',
-    word_count=8
-)
-print('Saved to output.wav')
-"
-```
-
-## Usage
-
-1. Launch the Gradio interface
-2. Input your paper via URL, upload PDF, or paste text
-3. Select LLM provider and configure options
-4. Click "Generate" to create your audiobook
-5. Download the EP3 file with embedded chapters
+To view traces locally:
+1. Start the Langfuse server (see `langfuse/docker-compose.yml`).
+2. Access the dashboard at `http://localhost:3000`.
 
 ## Architecture
 
-- **Gradio**: Web interface for user interaction
-- **LangGraph**: Workflow orchestration for multi-step processing
-- **Transformers/Torch**: ML model inference
-- **PyMuPDF**: PDF parsing and text extraction
-- **PyDub**: Audio processing and concatenation
-- **EbookLib**: EP3 audiobook generation
+- **LangGraph**: Workflow orchestration for multi-step processing.
+- **Transformers/Torch**: ML model inference for TTS.
+- **PyMuPDF (fitz)**: Robust block-based PDF text extraction.
+- **FFmpeg**: Audio encoding and M4B packaging with metadata.
+- **Gradio**: Web interface for user interaction.
 
 ## License
 

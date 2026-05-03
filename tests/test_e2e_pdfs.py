@@ -81,11 +81,17 @@ async def _run_pipeline(graph, pdf_path: Path, voice: str = "Emma") -> dict:
     """Run the full pipeline on a PDF and return the final state dict."""
     from langgraph_pipeline.state import PipelineState, PipelineStatus
 
+    import uuid
+    session_id = f"e2e-session-{uuid.uuid4().hex[:8]}"
+    
     state = PipelineState(
         source_type="file",
         content="",
         temp_path=str(pdf_path),
         voice_profile=voice,
+        session_id=session_id,
+        user_id="e2e-test-user",
+        tags=["e2e-test", f"pdf-{pdf_path.stem}"]
     )
 
     result = None
