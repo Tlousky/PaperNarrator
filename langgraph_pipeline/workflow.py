@@ -20,6 +20,8 @@ import os
 import requests
 import logging
 
+logger = logging.getLogger(__name__)
+
 import sys
 from pathlib import Path
 # Ensure project root is in path for observability import
